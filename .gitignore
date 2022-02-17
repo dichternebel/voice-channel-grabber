@@ -1,0 +1,14 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/.vscode
+/bin
+/obj
+/DiscordVoiceChannelSync.csproj.user
+/config.json
+/token.json
+/lib
+/logs
+/App.config
