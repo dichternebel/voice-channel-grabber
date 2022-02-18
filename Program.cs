@@ -2,18 +2,16 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-using CliWrap;
-using CliWrap.Buffered;
 using Dec.DiscordIPC;
 using Dec.DiscordIPC.Commands;
 using Dec.DiscordIPC.Events;
+using OBSWebsocketDotNet;
 using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
 
@@ -26,7 +24,7 @@ namespace VoiceChannelGrabber
         private static string clientSecret { get; set; }
 
 
-        private static string tokenJsonFile = "token.json";
+        private static readonly string tokenJsonFile = "token.json";
 
         private static Config Config {get; set;}
 
@@ -34,9 +32,13 @@ namespace VoiceChannelGrabber
 
         private static bool IsDiscordavailable { get; set; }
 
-        private static bool IsOBSavailable { get; set; }
+        private static bool IsOBSconnected { get; set; }
 
         private static DiscordIPC client { get; set; }
+
+        private static OBSWebsocket obs { get; set; }
+
+        private static Timer heartbeatTimer;
 
         static int Main(string[] args)
         {
@@ -49,33 +51,7 @@ namespace VoiceChannelGrabber
                  .CreateLogger();
 
             // Name this thing
-            Console.Title = "Discord Voice Channel Grabber for Streamkit-Overlay in OBS";
-
-            // Grab the OBSCommand.exe if not present
-            var libPath = Path.Combine(Directory.GetCurrentDirectory(), "lib");
-
-            if (!File.Exists(Path.Combine(libPath, "OBSCommand.exe")))
-            {
-                if (!Directory.Exists(libPath)) Directory.CreateDirectory(libPath);
-                using (var client = new WebClient())
-                {
-                    var zipPath = Path.Combine(libPath, "OBSCommand_v1.5.7.zip");
-                    Log.Logger.Information($"Downloading OBSCommand to {zipPath}...");
-                    client.DownloadFile(@"https://github.com/REALDRAGNET/OBSCommand/releases/download/1.5.7.0/OBSCommand_v1.5.7.zip", zipPath);
-                    ZipFile.ExtractToDirectory(zipPath, libPath, true);
-
-                    IEnumerable<FileInfo> files = Directory.GetFiles(Path.Combine(libPath,"OBSCommand")).Select(f => new FileInfo(f));
-                    foreach (var file in files)
-                    {
-                        File.Move(file.FullName, Path.Combine(libPath, file.Name));
-                    }
-
-                    // Clean up the mess you made, now!
-                    Directory.Delete(Path.Combine(libPath,"OBSCommand"));
-                    File.Delete(zipPath);
-                    File.Delete(Path.Combine(libPath,"obs-websocket-4.9.1-Windows-Installer.exe"));
-                }
-            }
+            Console.Title = "Discord Voice Channel Grabber for Streamkit-Voice-Overlay in OBS";
 
             try
             {
@@ -201,15 +177,33 @@ namespace VoiceChannelGrabber
             client.OnVoiceChannelSelect += voiceChannelHandler;
             await client.SubscribeAsync(new VoiceChannelSelect.Args());
 
-            // Check if OBS is available
+            // Initialize and start timer
+            var progress = new Progress<Exception>((ex) =>
+            {
+                // handle exception form timercallback
+                throw ex;
+                //if (ex is OBSWebsocketDotNet.ErrorResponseException)
+                //{
+                //    Log.Logger.Warning($"Connect failed: {ex.Message}");
+                //}
+                //else if (ex is AuthFailureException)
+                //{
+                //    Log.Logger.Warning("Unable to connect to OBS. Please double-check password!");
+                //}
+            });
+            heartbeatTimer = new Timer(x => RunHeartbeatTask(progress), null, 0, 5000);
+
+            // Instantiate OBS Websocket
             Log.Logger.Information("Waiting for OBS websocket connection...");
-            var heartbeatTimer = new System.Timers.Timer(5000);
-            heartbeatTimer.Elapsed += heartbeatTimer_Elapsed;
-            heartbeatTimer_Elapsed(null, null);
-            heartbeatTimer.Start();
+
+            Config.WebsocketAddress = string.IsNullOrWhiteSpace(Config.WebsocketAddress) ? "ws://127.0.0.1:4444" : Config.WebsocketAddress;
+            Config.WebsocketPassword = string.IsNullOrEmpty(Config.WebsocketPassword) ? "" : Config.WebsocketPassword;
+            if (!Config.WebsocketAddress.StartsWith("ws://")) Config.WebsocketAddress = $"ws://{Config.WebsocketAddress}";
+
+            obsOnDisconnect(null, null);
 
             // Rename this thing
-            Console.Title = $"Syncing Streamkit-Overlay in OBS @ /{Config.SceneName}/{Config.SourceName}";
+            Console.Title = $"Syncing StreamKit-Voice-Overlay in OBS @ /{Config.SceneName}/{Config.SourceName}";
 
             // Block this task until the program is closed.
             await Task.Delay(-1);
@@ -222,6 +216,36 @@ namespace VoiceChannelGrabber
             client.Dispose();
         }
 
+        private static void obsOnConnect(object sender, EventArgs e)
+        {
+            Log.Logger.Information("Connected to OBS.");
+            UpdateStreamkitDiscordOverlayTrigger();
+            IsOBSconnected = true;
+        }
+
+        private static void obsOnDisconnect(object sender, EventArgs e)
+        {
+            if (IsOBSconnected) Log.Logger.Warning("Websocket connection lost. Waiting for OBS...");
+            IsOBSconnected = false;
+
+            var websocket = new WebSocketSharp.WebSocket(Config.WebsocketAddress);
+            WebSocketSharp.Logging.Disable(websocket.Log);
+            websocket.SetCredentials("VoiceChannelGrabber", Config.WebsocketPassword, true);
+            while (websocket.ReadyState != WebSocketSharp.WebSocketState.Open)
+            {
+                websocket.Connect();
+                Thread.Sleep(5000);
+            }
+            websocket.Close();
+
+            obs = new OBSWebsocket();
+            obs.Connected -= obsOnConnect;
+            obs.Disconnected -= obsOnDisconnect;
+            obs.Connected += obsOnConnect;
+            obs.Disconnected += obsOnDisconnect;
+            obs.Connect(Config.WebsocketAddress, Config.WebsocketPassword);
+        }
+
         private static void voiceChannelHandler(object sender, VoiceChannelSelect.Data data)
         {
             var guild = data.guild_id;
@@ -230,38 +254,28 @@ namespace VoiceChannelGrabber
             UpdateStreamkitDiscordOverlay(guild, channel);
         }
 
-        private static async void UpdateStreamkitDiscordOverlay(string guildId, string channelId)
+        private static void UpdateStreamkitDiscordOverlay(string guildId, string channelId)
         {
-            if (!IsOBSavailable) return;
-
-            if (string.IsNullOrEmpty(guildId) || string.IsNullOrEmpty(channelId))
-            {
-                await CreateAndExecuteOBSCommand($"/hidesource=\"{Config.SceneName}\"/\"{Config.SourceName}\"");
-                Log.Logger.Information("Elvis has left the building!");
-                return;
-            }
-            await CreateAndExecuteOBSCommand($"/showsource=\"{Config.SceneName}\"/\"{Config.SourceName}\"");
+            if (!obs.IsConnected) return;
 
             var streamkitUrl = $"https://streamkit.discord.com/overlay/voice/{guildId}/{channelId}?icon=true&online=true&logo=white&text_color=%23ffffff&text_size=14&text_outline_color=%23000000&text_outline_size=0&text_shadow_color=%23000000&text_shadow_size=0&bg_color=%231e2124&bg_opacity=0.95&bg_shadow_color=%23000000&bg_shadow_size=0&invite_code=&limit_speaking=true&small_avatars=true&hide_names=false&fade_chat=0";
-            var getSourceSettingsCommand = await CreateAndExecuteOBSCommand($"/command=GetSourceSettings,sourceName={Config.SourceName}");
-
-            if (getSourceSettingsCommand.StandardOutput.Contains("\"status\": \"ok\"") && getSourceSettingsCommand.StandardOutput.Contains("\"sourceType\": \"browser_source\""))
+            try
             {
-                //found it
-                var setSourceSettingsProcess = await CreateAndExecuteOBSCommand($"/command=SetSourceSettings,sourceName={Config.SourceName},sourceSettings=url='{streamkitUrl}'");
-                if (setSourceSettingsProcess.StandardOutput.Contains("\"status\": \"ok\""))
+                if (string.IsNullOrEmpty(guildId) || string.IsNullOrEmpty(channelId))
                 {
-                    Log.Logger.Information("Browser Source update successfull!");
+                    obs.SetSourceRender(Config.SourceName, visible: false, sceneName: Config.SceneName);
+                    Log.Logger.Information("Elvis has left the building!");
                 }
                 else
                 {
-                    Log.Logger.Error("Aw snap! Something went terribly wrong... My bad!");
+                    obs.SetSourceRender(Config.SourceName, visible: true, sceneName: Config.SceneName);
+                    obs.SetSourceSettings(Config.SourceName, new Newtonsoft.Json.Linq.JObject { { "url", streamkitUrl } });
+                    Log.Logger.Information("Browser Source update successfull!");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                var displayAddress = !string.IsNullOrWhiteSpace(Config.WebsocketAddress) ? Config.WebsocketAddress : "127.0.0.1:4444";
-                Log.Logger.Error($"Browser Source '{Config.SourceName}' not found in Scene '{Config.SceneName}' calling <ws://{displayAddress}>");
+                Log.Logger.Error($"Ups! OBS said:'{ex.Message}'");
             }
         }
 
@@ -272,37 +286,8 @@ namespace VoiceChannelGrabber
             if (response != null) UpdateStreamkitDiscordOverlay(response.guild_id, response.id);
         }
 
-        private static async void heartbeatTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private static async void RunHeartbeatTask(IProgress<Exception> progress)
         {
-            var heartbeatCommand = await CreateAndExecuteOBSCommand("/command=GetVersion");
-
-            if(heartbeatCommand.StandardOutput.Contains("OBSWebsocketDotNet.AuthFailureException"))
-            {
-                Log.Logger.Warning("Unable to connect to OBS. Please double-check password!");
-            }
-            else if (heartbeatCommand.StandardOutput.Contains("\"status\": \"ok\""))
-            {
-                if (!IsOBSavailable)
-                {
-                    Log.Logger.Information("Connected to OBS.");
-                    // Give OBS some time to initialize
-                    Thread.Sleep(750);
-                    await UpdateStreamkitDiscordOverlayTrigger();
-                }
-                IsOBSavailable = true;
-                Log.Logger.Debug("OBS is alive...");
-            }
-            else
-            {
-                if (IsOBSavailable)
-                {
-                    Log.Logger.Warning("Websocket connection lost. Waiting for OBS...");
-                }
-                IsOBSavailable = false;
-                Log.Logger.Debug("OBS is dead...");
-            }
-
-
             try
             {
                 if (IsDiscordavailable) await client.SendCommandAsync(new GetSelectedVoiceChannel.Args() { });
@@ -386,39 +371,6 @@ namespace VoiceChannelGrabber
             });
 
             AccessToken = authResponse.AccessToken;
-        }
-
-        private static async Task<BufferedCommandResult> CreateAndExecuteOBSCommand(string command)
-        {
-            // OBSCommand defaults to 127.0.0.1:4444 and a blank password when not given
-            // I make use of it to have address and password optional in config
-            if (!string.IsNullOrWhiteSpace(Config.WebsocketAddress)
-                && !string.IsNullOrWhiteSpace(Config.WebsocketPassword))
-            {
-                return await Cli.Wrap("lib/OBSCommand.exe")
-                    .WithArguments($"/server={Config.WebsocketAddress} /password={Config.WebsocketPassword} {command}")
-                    .WithWorkingDirectory(Directory.GetCurrentDirectory())
-                    .ExecuteBufferedAsync();
-            }
-            else if (!string.IsNullOrWhiteSpace(Config.WebsocketAddress)
-                && string.IsNullOrWhiteSpace(Config.WebsocketPassword))
-            {
-                return await Cli.Wrap("lib/OBSCommand.exe")
-                    .WithArguments($"/server={Config.WebsocketAddress} {command}")
-                    .WithWorkingDirectory(Directory.GetCurrentDirectory())
-                    .ExecuteBufferedAsync();
-            }
-            else if (string.IsNullOrWhiteSpace(Config.WebsocketAddress)
-                && !string.IsNullOrWhiteSpace(Config.WebsocketPassword))
-            {
-                return await Cli.Wrap("lib/OBSCommand.exe")
-                    .WithArguments($"/password={Config.WebsocketPassword} {command}")
-                    .WithWorkingDirectory(Directory.GetCurrentDirectory())
-                    .ExecuteBufferedAsync();
-            }
-            return await Cli.Wrap("lib/OBSCommand.exe").WithArguments($"{command}")
-                .WithWorkingDirectory(Directory.GetCurrentDirectory())
-                .ExecuteBufferedAsync();
         }
     }
 }
