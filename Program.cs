@@ -225,6 +225,12 @@ namespace VoiceChannelGrabber
 
         private static void obsOnDisconnect(object sender, EventArgs e)
         {
+            if (e != null && ((WebSocketSharp.CloseEventArgs)e).Code == 1005)
+            {
+                Log.Logger.Error("Websocket password seems to be incorrect... Please check!");
+                return;
+            }
+
             if (IsOBSconnected) Log.Logger.Warning("Websocket connection lost. Waiting for OBS...");
             IsOBSconnected = false;
 
