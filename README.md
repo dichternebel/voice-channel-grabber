@@ -1,6 +1,10 @@
 # Voice Channel Grabber [![Licensed under the MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/dichternebel/voice-channel-grabber/blob/main/LICENSE)
 Sync your StreamKit Browser Source in OBS with your current voice channel from your Discord client.
 
+**tl;dr**
+If you are a streamer using OBS and Discord StreamKit Overlay you will want this thing for synchronizing your OBS Browser Source automagically.
+To get it, just [join my Discord](#joining-the-public-beta) and ask for it!
+
 ## The Story behind
 Are you also using **OBS** for streaming? And do you use **Discord**? Then you probably also use the **StreamKit Discord Overlay** Browser Source in OBS. So do I!
 
