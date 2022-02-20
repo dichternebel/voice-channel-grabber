@@ -37,20 +37,27 @@
   <ItemGroup>
     <None Remove="assets\VoiceChannelGrabber.png" />
     <None Remove="config.json" />
+    <None Remove="obs-websocket-dotnet.dll" />
     <None Remove="token.json" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CliWrap" Version="3.4.1" />
     <PackageReference Include="Dec.DiscordIPC" Version="1.2.2" />
-    <PackageReference Include="obs-websocket-dotnet" Version="4.9.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="6.0.0" />
+    <PackageReference Include="WebSocketSharp-netstandard" Version="1.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="assets\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="obs-websocket-dotnet">
+      <HintPath>lib\obs-websocket-dotnet.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

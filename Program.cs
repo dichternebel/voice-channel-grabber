@@ -61,7 +61,7 @@ namespace VoiceChannelGrabber
             catch (Exception ex)
             {
                 Log.Logger.Fatal(ex.Message);
-                Console.ReadLine();
+                Console.ReadKey();
                 return 1;
             }
         }
@@ -180,16 +180,8 @@ namespace VoiceChannelGrabber
             // Initialize and start timer
             var progress = new Progress<Exception>((ex) =>
             {
-                // handle exception form timercallback
+                // ToDo: handle exception from timercallback
                 throw ex;
-                //if (ex is OBSWebsocketDotNet.ErrorResponseException)
-                //{
-                //    Log.Logger.Warning($"Connect failed: {ex.Message}");
-                //}
-                //else if (ex is AuthFailureException)
-                //{
-                //    Log.Logger.Warning("Unable to connect to OBS. Please double-check password!");
-                //}
             });
             heartbeatTimer = new Timer(x => RunHeartbeatTask(progress), null, 0, 5000);
 
@@ -201,9 +193,6 @@ namespace VoiceChannelGrabber
             if (!Config.WebsocketAddress.StartsWith("ws://")) Config.WebsocketAddress = $"ws://{Config.WebsocketAddress}";
 
             obsOnDisconnect(null, null);
-
-            // Rename this thing
-            Console.Title = $"Syncing StreamKit-Voice-Overlay in OBS @ /{Config.SceneName}/{Config.SourceName}";
 
             // Block this task until the program is closed.
             await Task.Delay(-1);
@@ -221,6 +210,9 @@ namespace VoiceChannelGrabber
             Log.Logger.Information("Connected to OBS.");
             UpdateStreamkitDiscordOverlayTrigger();
             IsOBSconnected = true;
+
+            // Rename this thing
+            Console.Title = $"Syncing StreamKit-Voice-Overlay in OBS @ /{Config.SceneName}/{Config.SourceName}";
         }
 
         private static void obsOnDisconnect(object sender, EventArgs e)
@@ -230,26 +222,21 @@ namespace VoiceChannelGrabber
                 Log.Logger.Error("Websocket password seems to be incorrect... Please check!");
                 return;
             }
+            if (e != null && ((WebSocketSharp.CloseEventArgs)e).Code == 1006)
+            {
+                Thread.Sleep(5000);
+                Log.Logger.Debug("Unable to connect to websocket server.");
+            }
 
             if (IsOBSconnected) Log.Logger.Warning("Websocket connection lost. Waiting for OBS...");
             IsOBSconnected = false;
-
-            var websocket = new WebSocketSharp.WebSocket(Config.WebsocketAddress);
-            WebSocketSharp.Logging.Disable(websocket.Log);
-            websocket.SetCredentials("VoiceChannelGrabber", Config.WebsocketPassword, true);
-            while (websocket.ReadyState != WebSocketSharp.WebSocketState.Open)
-            {
-                websocket.Connect();
-                Thread.Sleep(5000);
-            }
-            websocket.Close();
 
             obs = new OBSWebsocket();
             obs.Connected -= obsOnConnect;
             obs.Disconnected -= obsOnDisconnect;
             obs.Connected += obsOnConnect;
             obs.Disconnected += obsOnDisconnect;
-            obs.Connect(Config.WebsocketAddress, Config.WebsocketPassword);
+            obs.Connect(Config.WebsocketAddress, Config.WebsocketPassword, true);
         }
 
         private static void voiceChannelHandler(object sender, VoiceChannelSelect.Data data)
