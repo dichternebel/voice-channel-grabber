@@ -208,10 +208,6 @@ namespace VoiceChannelGrabber
             // Block this task until the program is closed.
             await Task.Delay(-1);
 
-            // Unsubscribe from the event
-            await client.UnsubscribeAsync(new VoiceChannelSelect.Args());
-            client.OnVoiceChannelSelect -= voiceChannelHandler;
-
             // Dispose
             client.Dispose();
         }
@@ -303,6 +299,9 @@ namespace VoiceChannelGrabber
                 IsDiscordavailable = false;
                 Log.Logger.Warning($"IPC connection lost: {ex.Message} Waiting for Discord Client...");
 
+                // Unsubscribe from event handler
+                client.OnVoiceChannelSelect -= voiceChannelHandler;
+
                 await WaitForDiscordClient();
                 try
                 {
@@ -317,7 +316,8 @@ namespace VoiceChannelGrabber
                     Log.Logger.Information("Aw snap! We need to restart this thing and authorize in Discord.");
                     System.Environment.Exit(-1);
                 }
-                
+
+                client.OnVoiceChannelSelect += voiceChannelHandler;
                 await client.SubscribeAsync(new VoiceChannelSelect.Args());
                 await UpdateStreamkitDiscordOverlayTrigger();
             }
