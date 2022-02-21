@@ -197,10 +197,6 @@ namespace VoiceChannelGrabber
             // Block this task until the program is closed.
             await Task.Delay(-1);
 
-            // Unsubscribe from the event
-            await client.UnsubscribeAsync(new VoiceChannelSelect.Args());
-            client.OnVoiceChannelSelect -= voiceChannelHandler;
-
             // Dispose
             client.Dispose();
         }
