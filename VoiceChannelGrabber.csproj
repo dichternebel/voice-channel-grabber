@@ -41,7 +41,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CliWrap" Version="3.4.1" />
     <PackageReference Include="Dec.DiscordIPC" Version="1.2.2" />
     <PackageReference Include="obs-websocket-dotnet" Version="4.9.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
