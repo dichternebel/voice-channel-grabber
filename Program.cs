@@ -215,7 +215,7 @@ namespace VoiceChannelGrabber
         private static void obsOnConnect(object sender, EventArgs e)
         {
             Log.Logger.Information("Connected to OBS.");
-            UpdateStreamkitDiscordOverlayTrigger();
+            UpdateStreamkitDiscordOverlayTrigger().Wait();
             IsOBSconnected = true;
         }
 
@@ -260,9 +260,16 @@ namespace VoiceChannelGrabber
         {
             if (!obs.IsConnected) return;
 
-            var streamkitUrl = $"https://streamkit.discord.com/overlay/voice/{guildId}/{channelId}?icon=true&online=true&logo=white&text_color=%23ffffff&text_size=14&text_outline_color=%23000000&text_outline_size=0&text_shadow_color=%23000000&text_shadow_size=0&bg_color=%231e2124&bg_opacity=0.95&bg_shadow_color=%23000000&bg_shadow_size=0&invite_code=&limit_speaking=true&small_avatars=true&hide_names=false&fade_chat=0";
+            var streamkitUri = new UriBuilder($"https://streamkit.discord.com/overlay/voice/{guildId}/{channelId}?icon=true&online=true&logo=white&text_color=%23ffffff&text_size=14&text_outline_color=%23000000&text_outline_size=0&text_shadow_color=%23000000&text_shadow_size=0&bg_color=%231e2124&bg_opacity=0.95&bg_shadow_color=%23000000&bg_shadow_size=0&invite_code=&limit_speaking=true&small_avatars=true&hide_names=false&fade_chat=0");
             try
             {
+                // check for exisiting browser source with given name
+                var currentBrowserSourceSettings = obs.GetSourceSettings(Config.SourceName);
+                if (currentBrowserSourceSettings.SourceType != "browser_source")
+                {
+                    throw new Exception($"{Config.SourceName} is not a browser source. Unable to get and set URL... Doh!");
+                }
+
                 if (string.IsNullOrEmpty(guildId) || string.IsNullOrEmpty(channelId))
                 {
                     obs.SetSourceRender(Config.SourceName, visible: false, sceneName: Config.SceneName);
@@ -270,14 +277,23 @@ namespace VoiceChannelGrabber
                 }
                 else
                 {
+                    // Be nice: Respect user's custom StreamKit parameters
+                    var currentUri = new UriBuilder(currentBrowserSourceSettings.Settings["url"].ToString());
+                    if (currentUri.Host == "streamkit.discord.com"
+                        && currentUri.Query != null
+                        && currentUri.Query.Length > 0)
+                    {
+                        streamkitUri.Query = currentUri.Query;
+                    }
+
                     obs.SetSourceRender(Config.SourceName, visible: true, sceneName: Config.SceneName);
-                    obs.SetSourceSettings(Config.SourceName, new Newtonsoft.Json.Linq.JObject { { "url", streamkitUrl } });
+                    obs.SetSourceSettings(Config.SourceName, new Newtonsoft.Json.Linq.JObject { { "url", streamkitUri.ToString() } });
                     Log.Logger.Information("Browser Source update successfull!");
                 }
             }
             catch (Exception ex)
             {
-                Log.Logger.Error($"Ups! OBS said:'{ex.Message}'");
+                Log.Logger.Error($"Ups! OBS said: '{ex.Message}'");
             }
         }
 
