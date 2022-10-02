@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
-using System.Net.Sockets;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +10,7 @@ using Dec.DiscordIPC;
 using Dec.DiscordIPC.Commands;
 using Dec.DiscordIPC.Events;
 using OBSWebsocketDotNet;
+using OBSWebsocketDotNet.Communication;
 using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
 
@@ -101,7 +100,7 @@ namespace VoiceChannelGrabber
                     return;
 
                 }
-                Console.Write("Optionally change OBS websocket address and port (default is 127.0.0.1:4444): ");
+                Console.Write("Optionally change OBS websocket address and port (default is 127.0.0.1:4455): ");
                 Config.WebsocketAddress = Console.ReadLine();
                 Console.Write("Optionally change OBS websocket password (default is <blank>): ");
                 Config.WebsocketPassword = Console.ReadLine();
@@ -180,7 +179,7 @@ namespace VoiceChannelGrabber
             // Initialize and start timer
             var progress = new Progress<Exception>((ex) =>
             {
-                // handle exception form timercallback
+                // handle exception from timercallback
                 throw ex;
                 //if (ex is OBSWebsocketDotNet.ErrorResponseException)
                 //{
@@ -196,7 +195,7 @@ namespace VoiceChannelGrabber
             // Instantiate OBS Websocket
             Log.Logger.Information("Waiting for OBS websocket connection...");
 
-            Config.WebsocketAddress = string.IsNullOrWhiteSpace(Config.WebsocketAddress) ? "ws://127.0.0.1:4444" : Config.WebsocketAddress;
+            Config.WebsocketAddress = string.IsNullOrWhiteSpace(Config.WebsocketAddress) ? "ws://127.0.0.1:4455" : Config.WebsocketAddress;
             Config.WebsocketPassword = string.IsNullOrEmpty(Config.WebsocketPassword) ? "" : Config.WebsocketPassword;
             if (!Config.WebsocketAddress.StartsWith("ws://")) Config.WebsocketAddress = $"ws://{Config.WebsocketAddress}";
 
@@ -219,9 +218,9 @@ namespace VoiceChannelGrabber
             IsOBSconnected = true;
         }
 
-        private static void obsOnDisconnect(object sender, EventArgs e)
+        private async static void obsOnDisconnect(object sender, ObsDisconnectionInfo e)
         {
-            if (e != null && ((WebSocketSharp.CloseEventArgs)e).Code == 1005)
+            if (e != null && e.ObsCloseCode == ObsCloseCodes.AuthenticationFailed)
             {
                 Log.Logger.Error("Websocket password seems to be incorrect... Please check!");
                 return;
@@ -230,22 +229,12 @@ namespace VoiceChannelGrabber
             if (IsOBSconnected) Log.Logger.Warning("Websocket connection lost. Waiting for OBS...");
             IsOBSconnected = false;
 
-            var websocket = new WebSocketSharp.WebSocket(Config.WebsocketAddress);
-            WebSocketSharp.Logging.Disable(websocket.Log);
-            websocket.SetCredentials("VoiceChannelGrabber", Config.WebsocketPassword, true);
-            while (websocket.ReadyState != WebSocketSharp.WebSocketState.Open)
-            {
-                websocket.Connect();
-                Thread.Sleep(5000);
-            }
-            websocket.Close();
-
             obs = new OBSWebsocket();
             obs.Connected -= obsOnConnect;
             obs.Disconnected -= obsOnDisconnect;
             obs.Connected += obsOnConnect;
             obs.Disconnected += obsOnDisconnect;
-            obs.Connect(Config.WebsocketAddress, Config.WebsocketPassword);
+            obs.ConnectAsync(Config.WebsocketAddress, Config.WebsocketPassword);
         }
 
         private static void voiceChannelHandler(object sender, VoiceChannelSelect.Data data)
@@ -263,16 +252,18 @@ namespace VoiceChannelGrabber
             var streamkitUri = new UriBuilder($"https://streamkit.discord.com/overlay/voice/{guildId}/{channelId}?icon=true&online=true&logo=white&text_color=%23ffffff&text_size=14&text_outline_color=%23000000&text_outline_size=0&text_shadow_color=%23000000&text_shadow_size=0&bg_color=%231e2124&bg_opacity=0.95&bg_shadow_color=%23000000&bg_shadow_size=0&invite_code=&limit_speaking=true&small_avatars=true&hide_names=false&fade_chat=0");
             try
             {
+                var sceneItemId = obs.GetSceneItemId(Config.SceneName, Config.SourceName, 0);
+
                 // check for exisiting browser source with given name
-                var currentBrowserSourceSettings = obs.GetSourceSettings(Config.SourceName);
-                if (currentBrowserSourceSettings.SourceType != "browser_source")
+                var currentBrowserSourceSettings = obs.GetInputSettings(Config.SourceName);
+                if (currentBrowserSourceSettings.InputKind != "browser_source")
                 {
                     throw new Exception($"{Config.SourceName} is not a browser source. Unable to get and set URL... Doh!");
                 }
 
                 if (string.IsNullOrEmpty(guildId) || string.IsNullOrEmpty(channelId))
                 {
-                    obs.SetSourceRender(Config.SourceName, visible: false, sceneName: Config.SceneName);
+                    obs.SetSceneItemEnabled(Config.SceneName, sceneItemId, false);
                     Log.Logger.Information("Elvis has left the building!");
                 }
                 else
@@ -286,8 +277,8 @@ namespace VoiceChannelGrabber
                         streamkitUri.Query = currentUri.Query;
                     }
 
-                    obs.SetSourceRender(Config.SourceName, visible: true, sceneName: Config.SceneName);
-                    obs.SetSourceSettings(Config.SourceName, new Newtonsoft.Json.Linq.JObject { { "url", streamkitUri.ToString() } });
+                    obs.SetSceneItemEnabled(Config.SceneName, sceneItemId, true);
+                    obs.SetInputSettings(Config.SourceName, new Newtonsoft.Json.Linq.JObject { { "url", streamkitUri.ToString() } });
                     Log.Logger.Information("Browser Source update successfull!");
                 }
             }
