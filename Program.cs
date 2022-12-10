@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -13,11 +14,14 @@ using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Communication;
 using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
+using static Dec.DiscordIPC.Entities.Sticker;
 
 namespace VoiceChannelGrabber
 {
     class Program
     {
+        private static string baseDir { get; set; }
+
         private static string clientID { get; set; }
 
         private static string clientSecret { get; set; }
@@ -40,10 +44,12 @@ namespace VoiceChannelGrabber
 
         static int Main()
         {
+            baseDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+
             // Initialize serilog logger
             Log.Logger = new LoggerConfiguration()
                  .WriteTo.Console(Serilog.Events.LogEventLevel.Debug, theme: AnsiConsoleTheme.Literate)
-                 .WriteTo.File(Path.Combine(Directory.GetCurrentDirectory(), "logs", $"log-.txt"), Serilog.Events.LogEventLevel.Information, rollingInterval: RollingInterval.Day)
+                 .WriteTo.File(Path.Combine(baseDir, "logs", $"log-.txt"), Serilog.Events.LogEventLevel.Information, rollingInterval: RollingInterval.Day)
                  .MinimumLevel.Information()
                  .Enrich.FromLogContext()
                  .CreateLogger();
@@ -67,8 +73,8 @@ namespace VoiceChannelGrabber
 
         static async Task MainAsync()
         {
-            var configFile = Path.Combine(System.AppContext.BaseDirectory, "config.json");
-            tokenJsonFile = Path.Combine(System.AppContext.BaseDirectory, "token.json");
+            var configFile = Path.Combine(baseDir, "config.json");
+            tokenJsonFile = Path.Combine(baseDir, "token.json");
 
             if (File.Exists(configFile))
             {
