@@ -22,14 +22,13 @@ namespace VoiceChannelGrabber
 
         private static string clientSecret { get; set; }
 
-
-        private static readonly string tokenJsonFile = "token.json";
+        private static string tokenJsonFile { get; set; }
 
         private static Config Config {get; set;}
 
         private static string AccessToken { get; set; }
 
-        private static bool IsDiscordavailable { get; set; }
+        private static bool IsDiscordAvailable { get; set; }
 
         private static bool IsOBSconnected { get; set; }
 
@@ -39,7 +38,7 @@ namespace VoiceChannelGrabber
 
         private static Timer heartbeatTimer;
 
-        static int Main(string[] args)
+        static int Main()
         {
             // Initialize serilog logger
             Log.Logger = new LoggerConfiguration()
@@ -54,6 +53,7 @@ namespace VoiceChannelGrabber
 
             try
             {
+                Native.SetQuickEditMode(false);
                 MainAsync().Wait();
                 return 0;
             }
@@ -67,7 +67,8 @@ namespace VoiceChannelGrabber
 
         static async Task MainAsync()
         {
-            var configFile = "config.json";
+            var configFile = Path.Combine(System.AppContext.BaseDirectory, "config.json");
+            tokenJsonFile = Path.Combine(System.AppContext.BaseDirectory, "token.json");
 
             if (File.Exists(configFile))
             {
@@ -218,7 +219,7 @@ namespace VoiceChannelGrabber
             IsOBSconnected = true;
         }
 
-        private async static void obsOnDisconnect(object sender, ObsDisconnectionInfo e)
+        private static void obsOnDisconnect(object sender, ObsDisconnectionInfo e)
         {
             if (e != null && e.ObsCloseCode == ObsCloseCodes.AuthenticationFailed)
             {
@@ -299,11 +300,11 @@ namespace VoiceChannelGrabber
         {
             try
             {
-                if (IsDiscordavailable) await client.SendCommandAsync(new GetSelectedVoiceChannel.Args() { });
+                if (IsDiscordAvailable) await client.SendCommandAsync(new GetSelectedVoiceChannel.Args() { });
             }
             catch (Exception ex)
             {
-                IsDiscordavailable = false;
+                IsDiscordAvailable = false;
                 Log.Logger.Warning($"IPC connection lost: {ex.Message} Waiting for Discord Client...");
 
                 // Unsubscribe from event handler
@@ -332,12 +333,12 @@ namespace VoiceChannelGrabber
 
         private static async Task WaitForDiscordClient()
         {
-            while (!IsDiscordavailable)
+            while (!IsDiscordAvailable)
             {
                 try
                 {
                     await client.InitAsync();
-                    IsDiscordavailable = true;
+                    IsDiscordAvailable = true;
                     Log.Logger.Information("Connected to local Discord client.");
                     //The pipe needs time... :-D
                     Thread.Sleep(750);
