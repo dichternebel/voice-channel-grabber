@@ -14,7 +14,6 @@ using OBSWebsocketDotNet;
 using OBSWebsocketDotNet.Communication;
 using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
-using static Dec.DiscordIPC.Entities.Sticker;
 
 namespace VoiceChannelGrabber
 {
@@ -83,18 +82,30 @@ namespace VoiceChannelGrabber
             }
             else
             {
-                Config = new Config{
-                    WebsocketAddress = "",
-                    WebsocketPassword = "",
-                    SceneName = "",
-                    SourceName = ""
-                };
+                Config = new Config();
 
                 // Get configuration settings...
                 Console.WriteLine("Moin!");
                 Console.WriteLine("Let's do some configuration stuff together. Great fun times... ;-)");
                 Console.WriteLine();
 
+                Console.Write("Do you have your own private Discord app with Client ID and Client secret? ([N]/Y) ");
+                var hasDiscordAppAnser = Console.ReadLine();
+                if (hasDiscordAppAnser.ToLower() == "y")
+                {
+                    Console.Write("Enter your Discord Client ID: ");
+                    Config.ClientID = Console.ReadLine();
+                    Console.Write("Enter your Discord Client Secret: ");
+                    Config.ClientSecret = Console.ReadLine();
+                    Console.Write("Enter the app's Redirect URI e.g. http://localhost:3000/callback: ");
+                    Config.RedirectUri = Console.ReadLine();
+                }
+                else
+                {
+                    Log.Logger.Warning("Please make sure you are member of the app tester list! Otherwise this thing doesn't work...");
+                    Log.Logger.Information("Please have a look here how to join the beta: https://github.com/dichternebel/voice-channel-grabber#joining-the-public-beta");
+                    Console.WriteLine();
+                }
                 Console.Write("Enter the OBS scene name where the Browser Source is in: ");
                 Config.SceneName = Console.ReadLine();
                 Console.Write("Enter the name of the Browser Source: ");
@@ -114,7 +125,7 @@ namespace VoiceChannelGrabber
 
                 // ...and write them to file
                 using FileStream createStream = File.Create(configFile);
-                await JsonSerializer.SerializeAsync(createStream, Config);
+                await JsonSerializer.SerializeAsync(createStream, Config, new JsonSerializerOptions { WriteIndented = true });
                 await createStream.DisposeAsync();
 
                 Console.WriteLine();
@@ -123,8 +134,16 @@ namespace VoiceChannelGrabber
                 Console.Clear();
             }
 
-            clientID = ConfigurationManager.AppSettings["ClientID"];
-            clientSecret = ConfigurationManager.AppSettings["ClientSecret"];
+            if (string.IsNullOrEmpty(Config.ClientID) || string.IsNullOrEmpty(Config.ClientSecret))
+            {
+                clientID = ConfigurationManager.AppSettings["ClientID"];
+                clientSecret = ConfigurationManager.AppSettings["ClientSecret"];
+            }
+            else
+            {
+                clientID = Config.ClientID;
+                clientSecret = Config.ClientSecret;
+            }
 
             var token = string.Empty;
 
@@ -136,7 +155,7 @@ namespace VoiceChannelGrabber
             if (!File.Exists(tokenJsonFile))
             {
                 //Authorize
-                await AuthorizeAndAuthenticateDiscord();
+                await AuthorizeAndAuthenticateDiscord(Config.RedirectUri);
             }
             else
             {
@@ -159,7 +178,7 @@ namespace VoiceChannelGrabber
                     );
 
                     using FileStream createStream = File.Create(tokenJsonFile);
-                    await JsonSerializer.SerializeAsync(createStream, authResponse);
+                    await JsonSerializer.SerializeAsync(createStream, authResponse, new JsonSerializerOptions { WriteIndented = true });
                     await createStream.DisposeAsync();
 
                     AccessToken = authResponse.AccessToken;
@@ -176,7 +195,7 @@ namespace VoiceChannelGrabber
                 catch (Exception ex)
                 {
                     Log.Logger.Error(ex.Message);
-                    await AuthorizeAndAuthenticateDiscord();
+                    await AuthorizeAndAuthenticateDiscord(Config.RedirectUri);
                 }
             }
             
@@ -186,7 +205,7 @@ namespace VoiceChannelGrabber
             // Initialize and start timer
             var progress = new Progress<Exception>((ex) =>
             {
-                // handle exception from timercallback
+                // ToDo: handle exception from timercallback
                 throw ex;
                 //if (ex is OBSWebsocketDotNet.ErrorResponseException)
                 //{
@@ -357,7 +376,7 @@ namespace VoiceChannelGrabber
             }
         }
 
-        private static async Task AuthorizeAndAuthenticateDiscord()
+        private static async Task AuthorizeAndAuthenticateDiscord(string redirectUri)
         {
             //Authorize
             string code;
@@ -377,12 +396,12 @@ namespace VoiceChannelGrabber
                     AuthUri = "https://discord.com/api/oauth2/authorize",
                     AccessTokenUri = "https://discord.com/api/oauth2/token"
                 },
-                "http://127.0.0.1",
+                redirectUri,
                 code
             );
 
             using FileStream createStream = File.Create(tokenJsonFile);
-            await JsonSerializer.SerializeAsync(createStream, authResponse);
+            await JsonSerializer.SerializeAsync(createStream, authResponse, new JsonSerializerOptions { WriteIndented = true });
             await createStream.DisposeAsync();
 
             await client.SendCommandAsync(new Authenticate.Args()

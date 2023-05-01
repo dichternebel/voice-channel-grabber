@@ -12,3 +12,4 @@
 /logs
 /App.config
 *.user
+/VoiceChannelGrabber.csproj.user

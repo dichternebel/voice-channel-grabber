@@ -40,42 +40,35 @@ So the idea was to be able to synchronize the `Discord StreamKit URL` with the c
 https://streamkit.discord.com/overlay/voice/{guildId}/{channelId}?icon=true&online=true&logo=white
 ```
 
-And long story short: the final result is this git repository. :-D
-
-## Ok, sick! What do I need to get this thing?
-
-Well, unfortunately Discord is still limiting the usage of the underlying technology called `"RPC"` or `"IPC"`:
+But unfortunately Discord is still limiting the usage of the underlying technology called `"RPC"` or `"IPC"`:
 
 ![RPC limitation](assets/discord-rpc-limitation.png)
 > source: https://discord.com/developers/docs/topics/rpc
 
-So there are currently only two possibilities:
-1. Ask to join the public Beta I'm starting right now or
-2. build and run this thing on your own
+With the help of [DiscordIPC](https://github.com/dcdeepesh/DiscordIPC) I managed to build something that is actually working and the final result is this git repository.
 
-### Joining the public Beta
+## Ok, sick! What do I need to get this thing?
 
-I am able to offer up to 50 seats to people wanting to test-drive this thing. This should be more than enough for my range of influence that is 4.42 on average! KEKW!
+Just download the current version from the [release section](https://github.com/dichternebel/voice-channel-grabber/releases).
 
-So just [join my discord](https://discord.gg/4WFudUV6sm) and ask me, I will add you to the list of testers.
+Now after downloading there are currently two possibilities:
+1. Ask me to join the app tester list
+2. Run this thing on your own with your private Discord app ClientID.
 
-But please only ask for joining this public Beta if you really want to use this for streaming! Also please fulfill all prerequisites prior joining:
+### Joining the app tester list
 
-- You are using `OBS on Windows`
-- You are using the `Discord Client for Windows` (not the Browser-App!)
-- You have already installed the [obs-websocket extension](https://github.com/obsproject/obs-websocket/) for OBS
-- You have [StreamKit Discord Overlay](https://streamkit.discord.com/overlay) authorized in Discord and already successfully used it with a `Browser Source in OBS`
-- You have an idea why this could be useful for streamers
-- Most important: You are no asshole!
+I am able to offer up to 50 seats to people wanting to test-drive this thing.
 
-You will get a download link for the console application that synchronizes Discord with OBS. Please keep in mind, that this thing must run as long as you use OBS!
+So just [join my discord](https://discord.gg/4WFudUV6sm) and ask me, I will add you to the list of app testers. Once you are on the list you may use this without any limitation whatsoever.
+
+### Use your own private Discord app
+
+Go to the [discord developer portal](https://discord.com/developers/applications) and add a `private application` with Redirect URI to `http://localhost:3000/callback`. This thing is not working for apps associated to a team due to the RPC limitations mentioned above resulting in OAuth2 scope errors.
 
 ### Building this
-It's developed with Visual Studio 2019, but should also be compilable in VS Code.
+It's developed starting with Visual Studio 2019 and now v2022, but should also be compilable in VS Code.
 
-After building the code all you have to do is go to the [discord developer portal](https://discord.com/developers/applications) and add a `private application`. This thing is not working for apps associated to a team due to the RPC limitations mentioned above resulting in OAuth2 scope errors.
-
-Rename the `app.config.example` to `app.config` and paste your client id and client secret into the settings. If you prefer like me a single file application, hit the publish functionality in Visual Studio. That should be it!
+Rename the `app.config.example` to `app.config` and paste your client id and client secret into the settings. Make sure you have set up a Redirect URI in your Discord app to `http://localhost:3000/callback`. If you prefer like me a single file application, hit the publish functionality in Visual Studio. That should be it!
 
 
 
