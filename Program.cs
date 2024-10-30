@@ -275,7 +275,8 @@ namespace VoiceChannelGrabber
         {
             if (!obs.IsConnected) return;
 
-            var streamkitUri = new UriBuilder($"https://streamkit.discord.com/overlay/voice/{guildId}/{channelId}?icon=true&online=true&logo=white&text_color=%23ffffff&text_size=14&text_outline_color=%23000000&text_outline_size=0&text_shadow_color=%23000000&text_shadow_size=0&bg_color=%231e2124&bg_opacity=0.95&bg_shadow_color=%23000000&bg_shadow_size=0&invite_code=&limit_speaking=true&small_avatars=true&hide_names=false&fade_chat=0");
+            var effectiveGuildId = string.IsNullOrEmpty(guildId) ? channelId : guildId;
+            var streamkitUri = new UriBuilder($"https://streamkit.discord.com/overlay/voice/{effectiveGuildId}/{channelId}?icon=true&online=true&logo=white&text_color=%23ffffff&text_size=14&text_outline_color=%23000000&text_outline_size=0&text_shadow_color=%23000000&text_shadow_size=0&bg_color=%231e2124&bg_opacity=0.95&bg_shadow_color=%23000000&bg_shadow_size=0&invite_code=&limit_speaking=true&small_avatars=true&hide_names=false&fade_chat=0");
             try
             {
                 var sceneItemId = obs.GetSceneItemId(Config.SceneName, Config.SourceName, 0);
@@ -287,11 +288,11 @@ namespace VoiceChannelGrabber
                     throw new Exception($"{Config.SourceName} is not a browser source. Unable to get and set URL... Doh!");
                 }
 
-                if (string.IsNullOrEmpty(guildId) || string.IsNullOrEmpty(channelId))
+                if (string.IsNullOrEmpty(guildId) && string.IsNullOrEmpty(channelId))
                 {
                     obs.SetSceneItemEnabled(Config.SceneName, sceneItemId, false);
                     Log.Logger.Information("Elvis has left the building!");
-                }
+                } 
                 else
                 {
                     // Be nice: Respect user's custom StreamKit parameters
