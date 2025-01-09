@@ -1,14 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
     <RootNamespace>VoiceChannelGrabber</RootNamespace>
     <ApplicationIcon>DichterNebe1.ico</ApplicationIcon>
     <Platforms>AnyCPU;x64</Platforms>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
+    <FileVersion>1.2.1.0</FileVersion>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <Authors>dichternebel</Authors>
     <Product>VoiceChannelGrabber</Product>
@@ -24,9 +23,16 @@
   <ItemGroup>
     <PackageReference Include="Dec.DiscordIPC" Version="1.2.2" />
     <PackageReference Include="obs-websocket-dotnet" Version="5.0.0.3" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
+    <TrimmerRootAssembly Include="DiscordIPC" />
+    <TrimmerRootAssembly Include="Newtonsoft.Json" />
+    <TrimmerRootAssembly Include="obs-websocket-dotnet" />
+    <TrimmerRootAssembly Include="Serilog" />
+    <TrimmerRootAssembly Include="System.Configuration.ConfigurationManager" />
+    <TrimmerRootAssembly Include="System.Reactive" />
+    <TrimmerRootAssembly Include="Websocket.Client" />
   </ItemGroup>
-
+  
 </Project>

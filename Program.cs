@@ -365,7 +365,7 @@ namespace VoiceChannelGrabber
             );
 
             using FileStream createStream = File.Create(tokenJsonFile);
-            await JsonSerializer.SerializeAsync(createStream, authResponse, new JsonSerializerOptions { WriteIndented = true });
+            await JsonSerializer.SerializeAsync(createStream, authResponse, JsonContext.Default.OAuth2AuthenticateResponse);
             await createStream.DisposeAsync();
 
             await client.SendCommandAsync(new Authenticate.Args()
@@ -388,6 +388,7 @@ namespace VoiceChannelGrabber
                 {
                     access_token = AccessToken
                 });
+                Log.Logger.Information("Authentication successful.");
             }
             catch (Exception ex)
             {
@@ -407,7 +408,7 @@ namespace VoiceChannelGrabber
 
                 // Save new token
                 using FileStream createStream = File.Create(tokenJsonFile);
-                await JsonSerializer.SerializeAsync(createStream, authResponse, new JsonSerializerOptions { WriteIndented = true });
+                await JsonSerializer.SerializeAsync(createStream, authResponse, JsonContext.Default.OAuth2AuthenticateResponse);
                 await createStream.DisposeAsync();
 
                 AccessToken = authResponse.AccessToken;
@@ -417,6 +418,7 @@ namespace VoiceChannelGrabber
                 {
                     access_token = AccessToken
                 });
+                Log.Logger.Information("Re-authentication successful.");
             }
         }
     }
