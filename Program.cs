@@ -159,44 +159,7 @@ namespace VoiceChannelGrabber
             }
             else
             {
-                var jsonString = File.ReadAllText(tokenJsonFile);
-                var authJson = JsonSerializer.Deserialize<JsonElement>(jsonString);
-                AccessToken = authJson.GetProperty("AccessToken").ToString();
-                var expirationDate = Convert.ToDateTime(authJson.GetProperty("Expires").ToString());
-
-                // Refresh that thing if rotten
-                if (DateTime.Compare(DateTime.Now.AddDays(-1), expirationDate) > 0)
-                {
-                    var authResponse = OAuth2.AuthenticateByToken(
-                        new OAuth2Provider{
-                            ClientId = clientID,
-                            ClientSecret = clientSecret,
-                            AuthUri = "https://discord.com/api/oauth2/authorize",
-                            AccessTokenUri = "https://discord.com/api/oauth2/token"
-                        },
-                        authJson.GetProperty("RefreshToken").ToString()
-                    );
-
-                    using FileStream createStream = File.Create(tokenJsonFile);
-                    await JsonSerializer.SerializeAsync(createStream, authResponse, new JsonSerializerOptions { WriteIndented = true });
-                    await createStream.DisposeAsync();
-
-                    AccessToken = authResponse.AccessToken;
-                }
-
-                //Authenticate (ignoring the response here)
-                try
-                {
-                    await client.SendCommandAsync(new Authenticate.Args()
-                    {
-                        access_token = AccessToken
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Log.Logger.Error(ex.Message);
-                    await AuthorizeAndAuthenticateDiscord(Config.RedirectUri);
-                }
+                await Authenticate();
             }
             
             client.OnVoiceChannelSelect += voiceChannelHandler;
@@ -411,6 +374,50 @@ namespace VoiceChannelGrabber
             });
 
             AccessToken = authResponse.AccessToken;
+        }
+
+        private static async Task Authenticate()
+        {
+            var jsonString = File.ReadAllText(tokenJsonFile);
+            var authJson = JsonSerializer.Deserialize<JsonElement>(jsonString);
+            AccessToken = authJson.GetProperty("AccessToken").ToString();
+
+            try
+            {
+                await client.SendCommandAsync(new Authenticate.Args()
+                {
+                    access_token = AccessToken
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Logger.Error(ex.Message);
+
+                // Refresh the token using the refresh_token
+                var authResponse = OAuth2.AuthenticateByToken(
+                    new OAuth2Provider
+                    {
+                        ClientId = clientID,
+                        ClientSecret = clientSecret,
+                        AuthUri = "https://discord.com/api/oauth2/authorize",
+                        AccessTokenUri = "https://discord.com/api/oauth2/token"
+                    },
+                    authJson.GetProperty("RefreshToken").ToString()
+                );
+
+                // Save new token
+                using FileStream createStream = File.Create(tokenJsonFile);
+                await JsonSerializer.SerializeAsync(createStream, authResponse, new JsonSerializerOptions { WriteIndented = true });
+                await createStream.DisposeAsync();
+
+                AccessToken = authResponse.AccessToken;
+
+                // Try authentication again with new token
+                await client.SendCommandAsync(new Authenticate.Args()
+                {
+                    access_token = AccessToken
+                });
+            }
         }
     }
 }
