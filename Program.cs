@@ -259,12 +259,15 @@ namespace VoiceChannelGrabber
                 else
                 {
                     // Be nice: Respect user's custom StreamKit parameters
-                    var currentUri = new UriBuilder(currentBrowserSourceSettings.Settings["url"].ToString());
-                    if (currentUri.Host == "streamkit.discord.com"
-                        && currentUri.Query != null
-                        && currentUri.Query.Length > 0)
+                    var currentBrowserSourceUrl = currentBrowserSourceSettings.Settings["url"].ToString();
+                    if (Uri.TryCreate(currentBrowserSourceUrl, UriKind.Absolute, out Uri currentUri))
                     {
-                        streamkitUri.Query = currentUri.Query;
+                        if (currentUri.Host == "streamkit.discord.com"
+                            && currentUri.Query != null
+                            && currentUri.Query.Length > 0)
+                        {
+                            streamkitUri.Query = currentUri.Query;
+                        }
                     }
 
                     obs.SetSceneItemEnabled(Config.SceneName, sceneItemId, true);

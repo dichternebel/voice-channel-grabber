@@ -7,7 +7,7 @@
     <RootNamespace>VoiceChannelGrabber</RootNamespace>
     <ApplicationIcon>DichterNebe1.ico</ApplicationIcon>
     <Platforms>AnyCPU;x64</Platforms>
-    <FileVersion>1.2.1.0</FileVersion>
+    <FileVersion>1.2.2.0</FileVersion>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <Authors>dichternebel</Authors>
     <Product>VoiceChannelGrabber</Product>
